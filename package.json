@@ -1,0 +1,26 @@
+{
+  "name": "ezmqtt",
+  "version": "0.1-21355",
+  "description": "EZMQTT An MQTT Interface for Ezlo Hubs",
+  "main": "app.js",
+  "private": true,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "ssh://patrick@192.168.0.15/volume1/git/ezmqtt.git"
+  },
+  "author": "Patrick Rigney/Kedron Holdings LLC <patrick@toggledbits.com>",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "dependencies": {
+    "https": "^1.0.0",
+    "js-yaml": "^3.14.1",
+    "jshint": "^2.13.1",
+    "mqtt": "^4.2.8",
+    "node-fetch": "2.6.5",
+    "trace-unhandled": "^2.0.1",
+    "uuid": "^8.3.2",
+    "ws": "7.5.5"
+  }
+}
