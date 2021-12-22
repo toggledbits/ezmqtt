@@ -12,7 +12,7 @@ const EzloClient = require( './ezlo' );
 
 var mqtt_client = false;
 var stopping = false;
-var dumpdir = ".";
+var dumpdir = "."; // ??? Fix me
 
 var config = {
     serial: "90000473",

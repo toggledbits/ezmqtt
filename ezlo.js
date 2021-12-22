@@ -15,7 +15,7 @@ const AUTH_LOCAL = 1;
 const AUTH_REMOTE = 2;
 
 var loginfo = {};
-var dumpdir = ".";
+var dumpdir = ".";  // ??? fix me
 
 function isUndef( r ) {
     return "undefined" === typeof r;
