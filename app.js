@@ -1,15 +1,11 @@
 /* ezmqtt -- Copyright (C) 2021, Patrick H. Rigney, All Rights Reserved
- * 
+ *
  */
 
-const version = 21355;
-
-require('trace-unhandled');
+const version = 21356;
 
 const fs = require('fs');
 const path = require('path');
-
-// Ref: https://github.com/mqttjs/MQTT.js#readme
 const mqtt = require( 'mqtt' );
 
 const EzloClient = require( './ezlo' );
@@ -38,14 +34,27 @@ function offline() {
 
 function mqtt_send( topic, payload, opts ) {
     opts = opts || { qos: 1, retain: true };
-    mqtt_client.publish( `${config.mqtt_ident}/${topic}`, payload, opts );
+    try {
+        if ( "object" === typeof payload ) {
+            payload = JSON.stringify( payload );
+        } else {
+            payload = String( payload );
+        }
+        mqtt_client.publish( `${config.mqtt_ident}/${topic}`, payload, opts );
+    } catch ( err ) {
+        console.log( err );
+    }
 }
 
 function mqtt_device_message( topic, payload ) {
-    let m = topic.match( "device/([^/]+)/" );
-    if ( 2 === m.length && ezlo.hasDevice( m[1] ) ) {
+    let m = topic.match( /device\/([^/]+)/ );
+    if ( m && 2 === m.length && ezlo.hasDevice( m[1] ) ) {
         payload = ezlo.getFullDevice( m[1] );
-        mqtt_send( `device/${m[1]}/update`, payload );
+        try {
+            mqtt_send( `tele/device/${m[1]}`, payload );
+        } catch ( err ) {
+            console.error( "mqtt: failed to send device update:", err );
+        }
     } else {
         console.log( "Topic",topic,"can't locate device");
     }
@@ -53,30 +62,59 @@ function mqtt_device_message( topic, payload ) {
 
 function mqtt_device_item_message( topic, payload ) {
     let m = topic.match( "device/([^/]+)/item/([^/]+)" );
-    if ( 3 === m.length && ezlo.hasDevice( m[1] ) ) {
+    if ( m && 3 === m.length && ezlo.hasDevice( m[1] ) ) {
         let device = ezlo.getFullDevice( m[1] );
         if ( device.items[ m[2] ] ) {
+            let item = device.items[ m[2] ];
             if ( 0 !== payload.length ) {
                 /* With payload, attempt to set value */
-                ezlo.setItemValue( device.items[ m[2] ]._id, payload );
+                try {
+                    ezlo.setItemValue( device.items[ m[2] ]._id, payload ).then( () => {
+                        console.log( `mqtt: <${topic} ${payload}> success; item value set.` );
+                    }).catch( err => {
+                        console.error( `mqtt: <${topic} ${payload}> failed; ${err.message} (${err.code}): ${err.reason}` );
+                    });
+                } catch ( err ) {
+                    console.log( `mqtt: <${topic} ${payload}> failed:`, err );
+                }
             } else {
                 /* No payload -- just echo current value */
-                mqtt_send( `device/${m[1]}/item/${m[2]}`, device.items[ m[2] ] );
+                mqtt_send( `tele/device/${m[1]}/item/${item.name}`, item.value );
+                mqtt_send( `tele/item/${item._id}`, item );
             }
         } else {
-            console.log( "Topic",topic,"no such item on device");
-        } 
+            console.log( `mqtt: <${topic} ${payload}> failed: item not present on device` );
+        }
     } else {
-        console.log( "Topic",topic,"can't locate device");
+        console.log( `mqtt: <${topic} ${payload}> failed: device unknown or malformed topic` );
     }
 }
 
 function mqtt_item_message( topic, payload ) {
     let m = topic.match( "/item/(.*)$" );
-    if ( 2 === m.length ) {
-        ezlo.setItemValue( m[1], payload );
+    if ( m && 2 === m.length ) {
+        let item = ezlo.getItem( m[1] );
+        if ( ! item ) {
+            console.log( `mqtt: <${topic} ${payload}> failed: item unknown` );
+        } else {
+            if ( 0 !== payload.length ) {
+                try {
+                    ezlo.setItemValue( m[1], payload ).then( () => {
+                        console.log( `mqtt: <${topic} ${payload}> success` );
+                    }).catch( err => {
+                        console.error( `mqtt: <${topic} ${payload}> failed; ${err.message} (${err.code}): ${err.reason}` );
+                    });;
+                } catch ( err ) {
+                    console.log( `mqtt: <${topic} ${payload}> failed:`, err );
+                }
+            } else {
+                /* No payload -- just echo current value */
+                mqtt_send( `tele/device/${item.deviceId}/item/${item.name}`, item.value );
+                mqtt_send( `tele/item/${item._id}`, item );
+            }
+        }
     } else {
-        console.error("Topic",topic,"malformed");
+        console.log( `mqtt: <${topic} ${payload}> failed: topic malformed` );
     }
 }
 
@@ -122,7 +160,7 @@ async function start_mqtt() {
                     /* ignore -- listening to ourselves */
                 } else if ( topic.match( /^.*\/set\/device\/.*\/item\/[^/]*$/ ) ) {
                     mqtt_device_item_message( topic, payload );
-                } else if ( topic.match( /^.*\/get\/device\/[^/]*$/ ) ) {
+                } else if ( topic.match( /^.*\/set\/device\/[^/]*$/ ) ) {
                     mqtt_device_message( topic, payload );
                 } else if ( topic.match( /^.*\/set\/item\/[^/]*$/ ) ) {
                     mqtt_item_message( topic, payload );
@@ -184,7 +222,7 @@ function mqtt_recycle() {
     }
 }
 
-process.on( 'XunhandledRejection', ( reason, promise ) => {
+process.on( 'unhandledRejection', ( reason, promise ) => {
     console.log( "Trapped unhandled Promise rejection", reason );
     console.error( reason );
     console.error( promise );
@@ -204,14 +242,14 @@ const ezlo = new EzloClient( config );
 start_mqtt().then( () => {
 
     console.log("MQTT connected; setting up Ezlo hub connection");
-    
+
     ezlo.on( 'device-updated', device => {
         mqtt_send( `tele/device/${device._id}/update`, device );
     });
 
     ezlo.on( 'item-updated', (item, device) => {
         mqtt_send( `tele/item/${item._id}`, item );
-        mqtt_send( `tele/device/${device._id}/item/${item.name}`, item );
+        mqtt_send( `tele/device/${device._id}/item/${item.name}`, item.value );
     });
 
     ezlo.on( 'mode-changed', data => {
@@ -220,6 +258,10 @@ start_mqtt().then( () => {
 
     ezlo.on( 'mode-changing', data => {
         mqtt_send( `tele/mode/changing`, data, { qos: 0, retain: false } );
+    });
+
+    ezlo.on( 'hub-status-change', status => {
+        mqtt_send( `tele/hub/status`, status );
     });
 
     ezlo.on( 'online', online );
