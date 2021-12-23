@@ -4,7 +4,7 @@
 
 const WebSocket = require( 'ws' );
 
-const debug = ()=>{}; /* console.debug; /* */
+var debug = ()=>{}; /* console.debug; /* */
 
 module.exports = class WSClient {
 
@@ -18,6 +18,9 @@ module.exports = class WSClient {
         this.pingok = true;
         this.closePromise = false;
         this.handlers = {}; // ??? should be Map
+        if ( options.debug ) {
+            debug = console.debug;
+        }
     }
 
     /** startWS() starts a WebSocket connection to an endpoint. */
@@ -204,12 +207,12 @@ module.exports = class WSClient {
             this.websocket.terminate();
         }
     }
-    
+
     on( event, callback, ...args ) {
         this.handlers[ event ] = this.handlers[ event ] || [];
         this.handlers[ event ].push( { callback: callback, args: args } );
     }
-    
+
     trigger( event, ...data ) {
         return new Promise( resolve => {
             for ( let handler of ( this.handlers[ event ] || [] ) ) {
