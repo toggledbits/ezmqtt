@@ -1,5 +1,5 @@
 /* ezmqtt -- Copyright (C) 2021, Patrick H. Rigney, All Rights Reserved
- *
+ * Licensed under GPL 3.0; please see https://....???
  */
 
 const version = 21356;
@@ -9,6 +9,7 @@ const path = require('path');
 const fetch = require('node-fetch');
 
 const WSClient = require('./wsclient');
+const util = require('./util');
 
 const AUTH_NONE = 0;
 const AUTH_LOCAL = 1;
@@ -16,6 +17,7 @@ const AUTH_REMOTE = 2;
 
 var loginfo = {};
 var dumpdir = ".";  // ??? fix me
+var debug = ()=>{}; /* console.debug; /* */
 
 function isUndef( r ) {
     return "undefined" === typeof r;
@@ -39,25 +41,29 @@ module.exports = class EzloClient {
         this.devices = {};
         this.items = {};
         this.deviceItems = {};
-        this.itemAttributes = {};
         this.nextheartbeat = 0;
-        this.salt = Math.floor( Math.random() * 0x7026f0 );
         this.stopping = false;
         this.timer = false;
         this.handlers = {};
+        this.close_resolver = false;
 
         if ( config.endpoint && config.endpoint.match( /^\d+\.\d+\.\d+\.\d+$/ ) ) {
             /* IP address only */
             this.endpoint = "wss://" + config.endpoint + ":17000";
         }
+        console.log("ENDPOINT",this.endpoint);
         if ( isUndef( config.username ) && isUndef( config.password ) ) {
             this.require_auth = AUTH_NONE;
-        } else if ( ( config.endpoint || "" ).match( /^wss?:\/\// ) ) {
+        } else if ( ( this.endpoint || "" ).match( /^wss?:\/\// ) ) {
             this.require_auth = AUTH_LOCAL;
         } else if ( isUndef( config.serial ) ) {
-            throw new Error( 'Insufficient data for eZLO access on ${id}' );
+            throw new Error( `Insufficient data for eZLO access; need serial` );
         } else {
             this.require_auth = AUTH_REMOTE;
+        }
+        
+        if ( this.config.debug ) {
+            debug = console.debug;
         }
     }
 
@@ -89,21 +95,34 @@ module.exports = class EzloClient {
                     }
                     ws_opts.agent = new https.Agent( agent_opts );
                 }
-                this.socket = new WSClient( this.endpoint, { connectTimeout: 30000 }, ws_opts );
-                this.socket.on( "message", this.ws_message.bind( this ) );
-                this.socket.on( "close", this.ws_closing.bind( this ) );
+                this.socket = new WSClient( this.endpoint, { connectTimeout: 60000 }, ws_opts );
+                this.socket.on( "message", this.handle_message.bind( this ) );
+                this.socket.on( "close", (code,reason) => {
+                    console.log( 'ezlo: connection closing', code, reason );
+                    this.socket = false;
+                    if ( this.close_resolver ) {
+                        try {
+                            this.close_resolver();
+                        } catch ( err ) {
+                            console.error( err );
+                        }
+                        this.close_resolver = false;
+                    }
+                    this.trigger( 'offline' );
+                    this._retry_connection();
+                });
                 this.socket.open().then( async () => {
-                    console.log( "ezlo: hub websocket connected (%2)", this.endpoint );
+                    console.log( `ezlo: hub websocket connected (${this.endpoint})` );
                     if ( AUTH_LOCAL === this.require_auth ) {
                         /* Local auth with token */
-                        console.debug( "ezlo: sending local hub login" );
+                        debug( "ezlo: sending local hub login" );
                         this.send( 'hub.offline.login.ui',
                             {
                                 user: this.authinfo.local_user_id,
                                 token: this.authinfo.local_access_token
                             }
                         ).then( () => {
-                            console.log("ezlo: local login (%2) success; starting hub inventory", this.endpoint );
+                            console.log("ezlo: local login success; taking hub inventory" );
                             this._inventory_hub();
                         }).catch( err => {
                             console.error( "ezlo: failed to inventory hub", err );
@@ -120,14 +139,14 @@ module.exports = class EzloClient {
                             }
                         ).then( resp => {
                             this.send( 'register', { serial: String( this.config.serial ) } ).then( () => {
-                                console.log( "ezlo: remote login (%2) success; inventorying hub... %3", this.endpoint, resp );
+                                console.log( "ezlo: remote login success; taking hub inventory" );
                                 this._inventory_hub();
                             }).catch( err => {
-                                console.error( "ezlo: hub registration failed: %2",err );
+                                console.error( "ezlo: hub registration failed:",err );
                                 this.socket.terminate();
                             });
                         }).catch( err => {
-                            console.error( "ezlo: hub login failed: %2",err );
+                            console.error( "ezlo: hub login failed:",err );
                             this.socket.terminate();
                         });
                     } else {
@@ -169,15 +188,28 @@ module.exports = class EzloClient {
         }
     }
 
-    stop() {
+    async stop() {
         this.stopping = true;
-        this.socket.close();
+        this._stop_timer();
+        this.pending = {}; /* should we wait for them? */
+        if ( ! this.socket ) {
+            return Promise.resolve();
+        }
+        /* Close the socket. The promise will wait for that. */
+        return new Promise( resolve => {
+            this.close_resolver = resolve;
+            this.socket.close();
+        });
+    }
+
+    connected() {
+        return !!this.socket;
     }
 
     ezlo_tick() {
         if ( this.socket && this.config.heartbeat ) {
             if ( Date.now() >= this.nextheartbeat ) {
-                console.debug( "ezlo: sending heartbeat request" );
+                debug( "ezlo: sending heartbeat request" );
                 this.send( 'hub.room.list' ).catch( err => {
                     console.error( "ezlo: heartbeat request failed:", err );
                     if ( "TimedPromise timeout" === err ) {
@@ -242,10 +274,10 @@ module.exports = class EzloClient {
                 let hashpass = sha.digest( 'hex' );
                 authurl = authurl.replace( /%username%/, username );
                 authurl = authurl.replace( /%hash%/, hashpass );
-                auth_p = loginfo[ self.config.username ] = new Promise( ( resolve, reject ) => {
-                    console.debug( "ezlo: login request:", authurl );
+                auth_p = loginfo[ self.config.username ] = new Promise( ( auth_resolve, auth_reject ) => {
+                    debug( "ezlo: login request:", authurl );
                     self.fetchJSON( authurl, { timeout: 30000, headers: { 'accept': 'application/json' } } ).then( authinfo => {
-                        console.debug( "ezlo: authentication response", authinfo );
+                        debug( "ezlo: authentication response", authinfo );
                         if ( true || self.config.dump_cloudauth ) {
                             try {
                                 fs.writeFileSync( path.join( dumpdir, "ezlo_auth_login.json" ),
@@ -264,35 +296,33 @@ module.exports = class EzloClient {
                         const buff = Buffer.from( authinfo.Identity, 'base64' );
                         const ident = JSON.parse( buff.toString( 'utf-8' ) ); /* A lot of work to get expiration */
                         ll.expires = ident.Expires * 1000; /* secs to ms */
-                        resolve( ll );
+                        auth_resolve( ll );
                     }).catch( err => {
                         if ( err instanceof Error ) {
                             if ( 404 === err.status ) {
                                 console.error( "ezlo: failed to authenticate username/password; check config and account" );
                                 /* Fatal */
-                                self.trigger( 'offline' );
                                 self.stopping = true;
-                                reject( new Error( "auth failed" ) );
+                                auth_reject( new Error( "auth failed" ) );
                                 return;
                             } else if ( 'ECONNREFUSED' === err.code ) {
                                 console.error( "ezlo: unable to connect to Ezlo cloud services; will be retried." );
-                                reject( new Error( "connection refused" ) );
+                                auth_reject( new Error( "connection refused" ) );
                                 return;
                             }
                         }
                         console.error( "ezlo: failed to authenticate:", err );
-                        reject( err );
+                        auth_reject( err );
                     });
                 }).catch( err => {
                     console.error( "ezlo: failed cloud login for", self.config.username, err );
-                    delete loginfo[ self.config.username ];
+                    reject( err );
                 });
             }
             if ( AUTH_REMOTE === self.require_auth ) {
                 /* Log in through remote access API */
                 // Ref: https://community.ezlo.com/t/ezlo-linux-firmware-http-documentation-preview/214564/143?u=rigpapa
-                auth_p.then( async () => {
-                    let ll = await loginfo[ self.config.username ];
+                auth_p.then( ( ll ) => {
                     let requrl = "https://" + ll.server_account + "/device/device/device/" + self.config.serial;
                     console.log( "ezlo: requesting device remote access login via", ll.server_account );
                     self.fetchJSON( requrl,
@@ -304,7 +334,7 @@ module.exports = class EzloClient {
                             }
                         }
                     ).then( hubinfo => {
-                        console.debug( "ezlo: account server replied", hubinfo );
+                        debug( "ezlo: account server replied", hubinfo );
                         if ( true || self.config.dump_cloudauth ) {
                             try {
                                 fs.writeFileSync( path.join( dumpdir, "ezlo_account_device.json" ),
@@ -315,8 +345,7 @@ module.exports = class EzloClient {
                             }
                         }
                         if ( ! hubinfo.NMAControllerStatus ) {
-                            console.warn( "eZLO cloud reports that hub %2 is not available (trying anyway...)",
-                                hubinfo.PK_Device );
+                            console.warn( `eZLO cloud reports that hub ${hubinfo.PK_Device} is not available (trying anyway...)` );
                         }
                         self.endpoint = hubinfo.Server_Relay;
                         self.authinfo = {};
@@ -328,17 +357,16 @@ module.exports = class EzloClient {
                 });
             } else if ( AUTH_LOCAL === self.require_auth ) {
                 /* Access using local API. Get token, get controller list to find controller, and open WebSocket */
-                auth_p.then( async () => {
-                    let ll = await loginfo[ self.config.username ];
+                auth_p.then( ( ll ) => {
+                    debug( "ezlo: requesting hub local access token" );
                     let reqHeaders = {
                         "MMSAuth": ll.mmsauth,
                         "MMSAuthSig": ll.mmsauthsig,
                         "accept": "application/json"
                     };
-                    console.debug( "ezlo: requesting hub local access token" );
                     self.fetchJSON( tokenurl, { timeout: 60000, headers: reqHeaders } ).then( tokenData => {
                         /* Have token, get controller keys */
-                        console.debug( "ezlo: token response", tokenData );
+                        debug( "ezlo: token response", tokenData );
                         if ( true || self.config.dump_cloudauth ) {
                             try {
                                 fs.writeFileSync( path.join( dumpdir, "ezlo_auth_token.json" ),
@@ -364,7 +392,7 @@ module.exports = class EzloClient {
                             "accept": "application/json"
                         };
                         self.fetchJSON( syncurl, { method: "post", timeout: 30000, headers: syncHeaders, body: JSON.stringify( syncBody ) } ).then( controllerData => {
-                            console.debug( "ezlo: sync response", controllerData );
+                            debug( "ezlo: sync response", controllerData );
                             /* Wow. WTF is this convoluted bullshit?!? Response contains multiple keys. First, have to go
                                through and find the uuid that matches the controller. */
                             if ( true || self.config.dump_cloudauth ) {
@@ -398,7 +426,7 @@ module.exports = class EzloClient {
                                 if ( c.meta && c.meta.target && "controller" === c.meta.target.type &&
                                     cid === c.meta.target.uuid ) {
                                     /* We have it! */
-                                    console.log( "ezlo: got local access token for serial %2", serial );
+                                    console.log( `ezlo: got local access token for serial`, serial );
                                     self.authinfo = {
                                         controller_id: cid,
                                         local_user_id: c.meta.entity.uuid,
@@ -433,7 +461,7 @@ module.exports = class EzloClient {
         p.push( new Promise( ( resolve, reject ) => {
             console.log( "ezlo: requesting hub info" );
             this.send( "hub.info.get" ).then( data => {
-                console.debug("ezlo: got hub.info.get response", data );
+                debug("ezlo: got hub.info.get response", data );
                 info.hub_info_get = data;
                 try {
                     this._process_hub_info( data );
@@ -449,7 +477,7 @@ module.exports = class EzloClient {
         p.push( new Promise( ( resolve, reject ) => {
             console.log( "ezlo: requesting mode info" );
             this.send( { method: "hub.modes.get", api: "2.0" } ).then( data => {
-                console.debug( "ezlo: got hub.modes.get response", data );
+                debug( "ezlo: got hub.modes.get response", data );
                 info.hub_modes_get = data;
                 try {
                     this._process_hub_modes( data );
@@ -466,8 +494,8 @@ module.exports = class EzloClient {
             console.log( "ezlo: requesting items" );
             this.send( "hub.items.list", {}, 60000 ).then( data => {
                 /* "Compile" items -- create index arrays per-item and per-device */
-                console.debug( "ezlo: got hub.items.list response" );
-                // console.debug( data );
+                debug( "ezlo: got hub.items.list response" );
+                // debug( data );
                 info.hub_items_list = data;
                 try {
                     this._process_hub_items( data );
@@ -485,8 +513,8 @@ module.exports = class EzloClient {
             console.log( "ezlo: requesting devices" );
             this.send( "hub.devices.list", {}, 60000 ).then( data => {
                 /* Devices */
-                console.debug( "ezlo: got hub.devices.list response" );
-                //console.debug( data );
+                debug( "ezlo: got hub.devices.list response" );
+                //debug( data );
                 info.hub_devices_list = data;
                 try {
                     this._process_hub_devices( data );
@@ -500,16 +528,16 @@ module.exports = class EzloClient {
                 reject( err );
             });
         }));
-        Promise.allSettled( p ).then( () => {
+        return Promise.allSettled( p ).then( () => {
             this.trigger( 'online' );
             fs.writeFileSync( "ezlo_inventory.json", JSON.stringify( info ), { encoding: "utf-8" } );
         });
     }
 
     _process_hub_info( data ) {
-        console.log( "ezlo: hub ${data.result.serial} is ${data.result.model} hw ${data.result.hardware} fw ${data.result.firmware}" );
+        console.log( `ezlo: hub ${data.result.serial} is ${data.result.model} hw ${data.result.hardware} fw ${data.result.firmware}` );
         if ( String( data.result.serial ) !== String( this.config.serial ) ) {
-            console.error( "ezlo: MISCONFIGURATION! Connected hub serial %2 different from configured serial %3",
+            console.error( "ezlo: MISCONFIGURATION! Connected hub serial ${data.result.serial} different from configuration serial ${this.config.serial}",
                 data.result.serial, this.config.serial );
             this.stopping = true;
             this.socket.terminate();
@@ -524,7 +552,6 @@ module.exports = class EzloClient {
         if ( AUTH_NONE === this.require_auth && ! data.result.offlineAnonymousAccess ) {
             console.error( "ezlo: stopping; hub's offline insecure access is disabled, and cloud auth info is not configured" );
             this.stopping = true;
-            this.trigger( 'offline' );
             throw new Error( 'Hub anonymous access is disabled, and username and password are not configured' );
         }
         if ( "boolean" === typeof this.config.set_anonymous_access &&
@@ -538,7 +565,7 @@ module.exports = class EzloClient {
                 }
                 this.send( 'hub.reboot' );
             }).catch( err => {
-                console.error( "ezlo: failed to modify the anonymous access setting: %2", err );
+                console.error( "ezlo: failed to modify the anonymous access setting:", err );
             });
         }
         if ( "boolean" === typeof this.config.set_insecure_access && this.config.set_insecure_access !== data.result.offlineInsecureAccess ) {
@@ -566,34 +593,46 @@ module.exports = class EzloClient {
     }
 
     _process_hub_items( data ) {
-        console.debug( `ezlo: got ${( data.result.items || [] ).length} items` );
+        debug( `ezlo: got ${( data.result.items || [] ).length} items` );
         data.result.items.forEach( item => {
+            let iid = item._id;
+            let changed = false;
+            if ( ! this.items[ iid ] ) {
+                changed = true;
+            } else {
+                changed = ! util.deepCompare( this.items[ iid ], item );
+            }
             this.items[ item._id ] = item;
-            this.deviceItems[ item.deviceId ] = this.deviceItems[ item.deviceId ] || {};
-            this.deviceItems[ item.deviceId ][ item._id ] = item;
+            this.devices[ item.deviceId ] = this.devices[ item.deviceId ] || { _id: item.deviceId };
+            this.deviceItems[ item.deviceId ] = this.deviceItems[ item.deviceId ] || this.devices[ item.deviceId ];
+            this.deviceItems[ item.deviceId ][ iid ] = item;
             this.deviceItems[ item.deviceId ][ item.name ] = item;
+            if ( changed ) {
+                this.trigger( 'item-updated', item, this.devices[ item.deviceId ] );
+            }
         });
     }
 
     _process_hub_devices( data ) {
-        console.debug( `ezlo: got ${( data.result.devices || [] ).length} devices` );
+        debug( `ezlo: got ${( data.result.devices || [] ).length} devices` );
         data.result.devices.forEach( dev => {
             let did = dev._id;
+            let changed = false;
+            if ( ! this.devices[ did ] ) {
+                changed = true;
+            } else {
+                changed = ! util.deepCompare( this.devices[ did ], dev );
+            }
             this.devices[ did ] = dev;
+            if ( changed ) {
+                this.trigger( 'device-updated', dev );
+            }
         });
     }
 
-    /** Base class calls ws_closing() when it is notified that the WebSocket is closing. */
-    ws_closing( code, reason ) {
-        console.log( `connection closed:`, code, reason );
-        this.socket = false;
-        this._retry_connection();
-    }
-
-    /** Base class calls ws_message() when data is received on the socket */
-    ws_message( message ) {
-        console.debug( "ezlo: received message ${message.length} bytes" );
-        console.debug( message );
+    handle_message( message ) {
+        debug( `ezlo: received message ${message.length} bytes` );
+        debug( message );
         let event = JSON.parse( message );
         if ( this.pending[ event.id ] ) {
             /* Response for tracked request */
@@ -618,10 +657,8 @@ module.exports = class EzloClient {
                     {
                         if ( AUTH_REMOTE === this.require_auth && false === event.result.connected &&
                             String( event.result.serial ) === String( this.config.serial ) ) {
-                            console.warn( "cloud service signalled that hub %2 is no longer connected; closing.",
-                                this, event.result.serial );
+                            console.warn( `ezlo: cloud service signalled that hub ${event.result.serial} is no longer connected` );
                             this.socket.close( 1000, "disconnected" );
-                            this.trigger( 'offline' );
                         }
                     }
                     break;
@@ -653,13 +690,13 @@ module.exports = class EzloClient {
 
                 case "hub.info.changed":
                     {
-                        console.debug( "ezlo: hub info change", event );
+                        debug( "ezlo: hub info change", event );
                     }
                     break;
 
                 case "hub.network.changed":
                     {
-                        console.debug( "ezlo: hub.network.changed", event );
+                        debug( "ezlo: hub.network.changed", event );
                     }
                     break;
 
@@ -690,14 +727,14 @@ module.exports = class EzloClient {
                                 }
                             }
                         */
-                        console.debug( "ezlo: handling device update for", event.result._id, event.result.deviceName );
+                        debug( "ezlo: handling device update for", event.result._id, event.result.deviceName );
                         this.devices[ event.result._id ] = event.result;
                         this.trigger( 'device-updated', event.result );
                     }
                     break;
 
                 case "hub.item.added":
-                    console.debug( `ezlo: adding ${event.result.name} (${event.result._id}) value (${event.result.valueType})${String(event.result.value)} for device ${event.result.deviceName} (${event.result.deviceId})` );
+                    debug( `ezlo: adding ${event.result.name} (${event.result._id}) value (${event.result.valueType})${String(event.result.value)} for device ${event.result.deviceName} (${event.result.deviceId})` );
                     this.items[ event.result._id ] = event.result;
                     this.deviceItems[ event.result.deviceId ] = this.deviceItems[ event.result.deviceId ] || {};
                     /* fall through */
@@ -727,9 +764,7 @@ module.exports = class EzloClient {
                                 }
                             }
                         */
-                        console.debug( "updating item %2 (%3) value (%7)%4 for device %5 (%6)",
-                            event.result.name, event.result._id, event.result.value, event.result.deviceName,
-                            event.result.deviceId, event.result.deviceName, typeof event.result.value );
+                        console.log( `ezlo: updating device ${event.result.deviceName} (${event.result.deviceId}) item ${event.result.name} (${event.result._id}) to (${event.result.valueType})${String(event.result.value)}` );
                         let item = this.deviceItems[ event.result.deviceId ][ event.result._id ];
                         if ( ! item ) {
                             this.items[ event.result._id ] = event.result;
@@ -741,13 +776,6 @@ module.exports = class EzloClient {
                             item.valueType = event.result.valueType;
                         }
                         this.trigger( 'item-updated', event.result, this.devices[ event.result.deviceId ] );
-/*
-                        send( `device/${event.result.deviceId}/item/${event.result._id}`, item );
-                        send( `device/${event.result.deviceId}/item/${event.result.name}`, item );
-                        let payload = { ...devices[ event.result.deviceId ] };
-                        payload.items = deviceItems[ event.result.deviceId ];
-                        send( `device/${event.result.deviceId}/update`, payload );
-*/
                     }
                     break;
 
@@ -790,7 +818,7 @@ module.exports = class EzloClient {
                     /* ignored */
             }
         } else {
-            console.debug( "ezlo: ignoring unsupported message:", message );
+            debug( "ezlo: ignoring unsupported message:", message );
         }
     }
 
@@ -823,7 +851,7 @@ module.exports = class EzloClient {
             payload.api = method.api || "1.0";
         }
         slot.promise = new Promise( (resolve,reject) => {
-            console.debug( `ezlo: sending tracked request ${slot.req_id}` );
+            debug( `ezlo: sending tracked request ${slot.req_id}` );
             slot.timer = setTimeout( () => {
                     slot.timer = false;
                     slot.reject( 'timeout' );
@@ -835,10 +863,10 @@ module.exports = class EzloClient {
             console.error( `ezlo: request ${slot.req_id} (${slot.req_method}) failed:`, err );
             throw err;
         }).finally( () => {
-            console.debug( "ezlo: removing resolved tracked request", slot.req_id );
+            debug( "ezlo: removing settled tracked request", slot.req_id );
             delete this.pending[ slot.req_id ];
         });
-        // console.debug( "ezlo: created tracked request ${slot.req_id} with payload", payload );
+        // debug( "ezlo: created tracked request ${slot.req_id} with payload", payload );
         return slot.promise;
     }
 
@@ -850,12 +878,13 @@ module.exports = class EzloClient {
         if ( ! item ) {
             throw new ReferenceError( `Item ${itemid} does not exist` );
         }
-        console.debug("ezlo: setItemValue",itemid,"=",value,"item",item._id);
+        let device = this.devices[ item.deviceId ] || {};
+        debug("ezlo: setItemValue",itemid,"=",value,"item",item._id);
         switch ( item.valueType  ) {
             case "int":
                 value = parseInt( value );
                 if ( isNaN( value ) ) {
-                    //throw TypeError( `Item ${item.name} requires ${item.valueType} value` );
+                    throw TypeError( `Item ${item.name} requires ${item.valueType} value` );
                 }
                 if ( ( item.minValue && value < item.minValue ) || ( item.maxValue && value > item.maxValue ) ) {
                     throw new RangeError( `Item ${item.name} value out of range` );
@@ -863,12 +892,13 @@ module.exports = class EzloClient {
                 break;
             case "bool":
                 if ( "string" === typeof value ) {
-                    value = value.match( /^(1|y|yes|t|true|on)$/i );
+                    value = value.match( /^\s*(1|y|yes|t|true|on)\s*$/i );
                 } else if ( "boolean" !== typeof value ) {
                     value = !! value;
                 }
                 break;
             case "token":
+            case "string":
                 value = String( value );
                 break;
             default:
@@ -876,12 +906,22 @@ module.exports = class EzloClient {
                     value = JSON.stringify( value );
                 }
         }
-        console.debug( "ezlo: sending hub.item.value.set", { _id: item._id, value: value } );
+        console.log( `ezlo: sending hub.item.value.set (${item.name}=${value} on ${device.name})` );
+        debug( `ezlo: item valueType=${item.valueType}, value final type=${typeof value}` );
+        debug( `ezlo: payload`, { _id: item._id, value: value } );
         return this.send( 'hub.item.value.set', { _id: item._id, value: value } );
+    }
+
+    async refresh() {
+        return this._inventory_hub();
     }
 
     hasDevice( id ) {
         return !!this.devices[ id ];
+    }
+
+    enumDevices() {
+        return Object.keys( this.devices );
     }
 
     getDevice( id ) {
@@ -892,6 +932,14 @@ module.exports = class EzloClient {
         let d = { ...this.devices[ id ] };
         d.items = this.deviceItems[ id ];
         return d;
+    }
+
+    hasItem( id ) {
+        return !!this.items[ id ];
+    }
+
+    enumItems() {
+        return Object.keys( this.items );
     }
 
     getItem( id ) {
@@ -910,7 +958,7 @@ module.exports = class EzloClient {
                 try {
                     handler.callback( ...allargs );
                 } catch ( err ) {
-                    console.error( `ezlo handler for ${event} threw uncaught exception:`, err );
+                    console.error( `ezlo: handler for ${event} threw uncaught exception:`, err );
                 }
             }
             resolve();

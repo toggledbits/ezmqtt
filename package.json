@@ -1,7 +1,7 @@
 {
   "name": "ezmqtt",
-  "version": "0.1-21355",
-  "description": "EZMQTT An MQTT Interface for Ezlo Hubs",
+  "version": "0.1-21357",
+  "description": "EZMQTT - an MQTT Interface for Ezlo Hubs",
   "main": "app.js",
   "private": true,
   "scripts": {
@@ -18,9 +18,9 @@
     "js-yaml": "^3.14.1",
     "jshint": "^2.13.1",
     "mqtt": "^4.2.8",
-    "node-fetch": "2.6.5",
+    "node-fetch": "^2.6.5",
     "trace-unhandled": "^2.0.1",
     "uuid": "^8.3.2",
-    "ws": "7.5.5"
+    "ws": "^7.5.5"
   }
 }

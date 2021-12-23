@@ -1,8 +1,15 @@
 /* ezmqtt -- Copyright (C) 2021, Patrick H. Rigney, All Rights Reserved
- *
+ * Licensed under GPL 3.0; please see https://....???
  */
 
-const version = 21356;
+/* TO-DO:
+ *  set config values via MQTT?
+ *  Config file
+ *  Build for NPM
+ *  Build for Docker
+ * persistent storage?
+ */
+const version = 21357;
 
 const fs = require('fs');
 const path = require('path');
@@ -12,17 +19,19 @@ const EzloClient = require( './ezlo' );
 
 var mqtt_client = false;
 var stopping = false;
-var dumpdir = "."; // ??? Fix me
 
-var config = {
-    serial: "90000473",
-    endpoint: "wss://192.168.0.67:17000",
-    username: "rigpapa",
-    password: "STOP!thisMADn3ss",
-    mqtt: "mqtt://192.168.0.66:1883"
-}; // ??? TBD
+const yaml = require( 'js-yaml' );
+var config = fs.readFileSync( "./ezmqtt-config.yaml" );
+config = yaml.safeLoad( config );
 
-config.mqtt_ident = config.mqtt_ident || "ezmqtt";
+config.mqtt = config.mqtt || {};
+config.mqtt.url = config.mqtt.url || "mqtt://127.0.0.1:1883"
+config.mqtt.ident = config.mqtt.ident || "ezmqtt";
+
+var debug = ()=>{}; /* console.debug; /* */
+if ( config.debug ) {
+    debug = console.debug;
+}
 
 function online() {
     mqtt_send( `tele/LWT`, "online", { qos: 1, retain: true } );
@@ -40,7 +49,8 @@ function mqtt_send( topic, payload, opts ) {
         } else {
             payload = String( payload );
         }
-        mqtt_client.publish( `${config.mqtt_ident}/${topic}`, payload, opts );
+        debug( `mqtt: sending ${config.mqtt.ident}/${topic} ${payload}` );
+        mqtt_client.publish( `${config.mqtt.ident}/${topic}`, payload, opts );
     } catch ( err ) {
         console.log( err );
     }
@@ -56,7 +66,7 @@ function mqtt_device_message( topic, payload ) {
             console.error( "mqtt: failed to send device update:", err );
         }
     } else {
-        console.log( "Topic",topic,"can't locate device");
+        console.log( `mqtt: topic <${topic}> can't locate device` );
     }
 }
 
@@ -103,7 +113,7 @@ function mqtt_item_message( topic, payload ) {
                         console.log( `mqtt: <${topic} ${payload}> success` );
                     }).catch( err => {
                         console.error( `mqtt: <${topic} ${payload}> failed; ${err.message} (${err.code}): ${err.reason}` );
-                    });;
+                    });
                 } catch ( err ) {
                     console.log( `mqtt: <${topic} ${payload}> failed:`, err );
                 }
@@ -121,20 +131,20 @@ function mqtt_item_message( topic, payload ) {
 var retries = 0;
 
 async function start_mqtt() {
-    return new Promise( ( resolve, reject ) => {
-        let url = config.mqtt || "mqtt://127.0.0.1:1883";
+    return new Promise( ( resolve ) => {
+        let url = config.mqtt.url || "mqtt://127.0.0.1:1883";
         console.log("Connecting to broker %1", url);
-        let copt = config.mqtt_options || {};
-        if ( config.mqtt_username ) {
-            copt.username = config.mqtt_username;
-            copt.password = config.mqtt_password || "";
+        let copt = config.mqtt.options || {};
+        if ( config.mqtt.username ) {
+            copt.username = config.mqtt.username;
+            copt.password = config.mqtt.password || "";
         }
-        copt.clientId = copt.clientId || config.mqtt_ident;
+        copt.clientId = copt.clientId || config.mqtt.ident;
         copt.reconnectPeriod = parseInt( copt.reconnectPeriod ) || 15000;
         copt.connectTimeout = parseInt( copt.connectTimeout ) || 10000;
         copt.resubscribe = false;
         copt.will = {
-            topic: `${config.mqtt_ident}/tele/LWT`,
+            topic: `${config.mqtt.ident}/tele/LWT`,
             payload: 'offline',
             qos: 1,
             retain: true,
@@ -143,22 +153,30 @@ async function start_mqtt() {
             }
         };
 
-        console.log("Connecting to MQTT broker", url);
+        console.log( "mqtt: connecting to broker at", url );
         mqtt_client = mqtt.connect( url, copt );
         mqtt_client.on( "connect", () => {
-            console.log("MQTT broker connected at ", url);
+            debug( "mqtt: broker connection established; completing client setup" );
             retries = 0;
-            mqtt_client.on( "message", ( topic, payload, packet ) => {
-                if ( ! topic.startsWith( `${config.mqtt_ident}/` ) ) {
+            mqtt_client.on( "message", ( topic, payload ) => {
+                if ( ! topic.startsWith( `${config.mqtt.ident}/` ) ) {
                     /* Not for us */
                     return;
                 }
-                // ??? do something
+                if ( topic.startsWith( `${config.mqtt.ident}/tele/` ) ) {
+                    debug( `mqtt: received echo of <${topic}>` );
+                    return;
+                }
                 payload = payload.toString( 'UTF-8' );
-                console.log("received",topic,payload);
-                if ( topic.match( /^.*\/tele\// ) ) {
-                    /* ignore -- listening to ourselves */
-                } else if ( topic.match( /^.*\/set\/device\/.*\/item\/[^/]*$/ ) ) {
+                if ( 0 === payload.length ) {
+                    console.log( `mqtt: received <${topic}> with no (empty) payload` );
+                } else if ( payload.length <= 64 ) {
+                    console.log( `mqtt: received <${topic} ${payload}>` );
+                } else {
+                    console.log( `mqtt: received <${topic}> with ${payload.length} byte payload` );
+                    debug( payload );
+                }
+                if ( topic.match( /^.*\/set\/device\/.*\/item\/[^/]*$/ ) ) {
                     mqtt_device_item_message( topic, payload );
                 } else if ( topic.match( /^.*\/set\/device\/[^/]*$/ ) ) {
                     mqtt_device_message( topic, payload );
@@ -169,38 +187,44 @@ async function start_mqtt() {
                     if ( 2 === m.length ) {
                         let command = m[1].replace( /\//g, "." );
                         ezlo.send( command, payload ).then( data => {
-                            console.log("Hub command", command, "complete; reply is", data);
+                            console.log( `mqtt: hub command <${command}> complete; reply is`, data);
                             return data;
                         });
                     }
+                } else if ( topic.match( /refresh$/ ) ) {
+                    console.log( "mqtt: request for hub refresh; starting..." );
+                    ezlo.refresh().catch( err => {
+                        console.error( "mqtt: hub refresh failed:", err );
+                    });
                 } else {
-                    console.error("Unhandled/unrecognized message", topic, payload);
+                    console.error( "mqtt: unhandled/unrecognized topic", topic );
                 }
             });
-            let pattern = `${config.mqtt_ident}/#`;
+            let pattern = `${config.mqtt.ident}/#`;
             mqtt_client.subscribe( pattern, {}, ( err ) => {
+                console.log( `mqtt: subscribed to ${pattern}` );
                 if ( err ) {
                     throw new Error( `Unable to subscribe to ${pattern}: ${String(err)}` );
                 } else {
                     online();
                 }
             });
+            resolve();
         });
         mqtt_client.on( "reconnect", () => {
-            console.log("Reconnecting to", url);
+            console.log( "mqtt: reconnecting to", url );
         });
         mqtt_client.on( "error", ( err ) => {
-            console.log("Error communicating with MQTT broker:", err );
+            console.log( "mqtt: error communicating with MQTT broker:", err );
         });
         mqtt_client.on( "offline", () => {
-            console.log("MQTT broker connection lost!");
+            console.log( "mqtt: broker connection lost!" );
             if ( 0 === ( ++retries % 3 ) ) {
                 offline();
-                console.error( "Too many retries to MQTT; full recycle." );
+                console.error( "mqtt: too many retries; starting full recycle." );
                 mqtt_recycle();
             } // else waiting for auto reconnect on this client
         });
-        resolve();
     });
 }
 
@@ -217,34 +241,51 @@ function mqtt_recycle() {
         if ( ! stopping ) {
             setTimeout( () => {
                 start_mqtt();
-            }, config.mqtt_options?.reconnectPeriod || 5000 );
+            }, config.mqtt.options?.reconnectPeriod || 5000 );
         }
     }
 }
 
+// ??? mode into ezlo.js? needed at all?
+var ezlo_health_check_timer = false;
+function ezlo_health_check() {
+    ezlo_health_check_timer = false;
+    if ( ezlo.connected() ) {
+        console.log( 'mqtt: ezlo health check starting' );
+        ezlo.send( 'hub.software.info.get', {} ).then( () => {
+            debug( 'mqtt: ezlo connection responding OK' );
+        }).catch( err => {
+            console.warn( 'mqtt: ezlo connection failed to respond timely; recycling.' );
+            ezlo.stop().then( () => {
+                ezlo.start();
+            });
+        }).finally( () => {
+            ezlo_health_check_timer = setTimeout( ezlo_health_check, 5000 );
+        });
+    }
+}
+
 process.on( 'unhandledRejection', ( reason, promise ) => {
-    console.log( "Trapped unhandled Promise rejection", reason );
-    console.error( reason );
-    console.error( promise );
-    console.trace();
-    console.error( promise.stack );
     try {
-        log.error( "Trapped unhandled Promise rejection: %1", reason );
-        log.error( "Please refer to the console log for trace" );
+        console.error( "Trapped unhandled Promise rejection: %1", reason );
+        console.error( reason );
+        console.error( promise );
+        console.trace();
+        console.error( promise.stack );
     } catch ( err ) {
         /* nada */
     }
 });
 
 /* Main */
-const ezlo = new EzloClient( config );
+const ezlo = new EzloClient( config.ezlo_hub );
 
 start_mqtt().then( () => {
 
-    console.log("MQTT connected; setting up Ezlo hub connection");
+    console.log("mqtt: connected to broker");
 
     ezlo.on( 'device-updated', device => {
-        mqtt_send( `tele/device/${device._id}/update`, device );
+        mqtt_send( `tele/device/${device._id}`, device );
     });
 
     ezlo.on( 'item-updated', (item, device) => {
@@ -267,9 +308,8 @@ start_mqtt().then( () => {
     ezlo.on( 'online', online );
     ezlo.on( 'offline', offline );
 
+    console.log( "mqtt: connecting to Ezlo hub" );
     ezlo.start();
 });
 
-new Promise( (resolve) => { } ).catch( () => {
-    console.log("body promise rejected");
-});
+// new Promise( (resolve) => { } ).catch( () => {});

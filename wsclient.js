@@ -4,6 +4,8 @@
 
 const WebSocket = require( 'ws' );
 
+const debug = ()=>{}; /* console.debug; /* */
+
 module.exports = class WSClient {
 
     constructor( url, options, ws_opts ) {
@@ -38,7 +40,7 @@ module.exports = class WSClient {
         }
         return new Promise( ( resolve, reject ) => {
             self.closePromise = false;
-            console.log( "WSClient opening", self.url, self.ws_opts );
+            debug( "wsclient: opening", self.url, self.ws_opts );
             self.websocket = new WebSocket( self.url, undefined, self.ws_opts );
             let connected = false;
             let connectTimer = setTimeout( () => {
@@ -46,11 +48,11 @@ module.exports = class WSClient {
                 try {
                     self.websocket.terminate();
                 } catch ( err ) { /* nada */ }
-                console.log("WSClient connection timeout");
+                debug("wsclient: connection timeout");
                 reject( 'timeout' );
             }, 50 + ( self.options.connectTimeout || 15000 ) );
             self.websocket.on( 'open', () => {
-                console.log( "WSClient connected!");
+                debug( "wsclient: connected!");
                 connected = true;
                 clearTimeout( connectTimer );
                 connectTimer = false;
@@ -58,7 +60,7 @@ module.exports = class WSClient {
                     try {
                         self.trigger( 'message', m );
                     } catch ( err ) {
-                        console.error( "1", err );
+                        console.error( "wsclient: message handler threw untrapped exception:", err );
                     }
                 });
                 self.websocket.on( 'ping', () => {
@@ -76,7 +78,7 @@ module.exports = class WSClient {
                         }
                         self.pingTimer = setTimeout( self._wsping_expire.bind( self ), self.options.pingInterval || 60000 );
                     } else {
-                        console.warn( "WSClient ignoring pong on closed socket", self );
+                        console.warn( "wsclient: ignoring pong on closed socket", self );
                     }
                 });
 
@@ -85,7 +87,6 @@ module.exports = class WSClient {
                 self.pingok = true;
 
                 /* Mark me, James. We've been successful. */
-                console.log( "WSClient: resolving open" );
                 resolve( self );
             });
             self.websocket.on( 'close', ( code, reason ) => {
@@ -94,14 +95,14 @@ module.exports = class WSClient {
                         clearTimeout( connectTimer );
                         connectTimer = false;
                     }
-                    console.log( "WSClient websocket to %2 closed during open/negotiation", self.url );
+                    debug( "wsclient: websocket to %2 closed during open/negotiation", self.url );
                     reject( "unexpected close" );
                 } else {
-                    console.log( 7, "WSClient got websocket close" );
+                    debug( "wsclient: got websocket close" );
                     try {
                         self.trigger( 'close', code, reason );
                     } catch ( err ) {
-                        console.error( err );
+                        console.error( 'wsclient: close handler threw untrapped exception:', err );
                     }
                 }
                 self.websocket = false;
@@ -120,21 +121,21 @@ module.exports = class WSClient {
                         clearTimeout( connectTimer );
                         connectTimer = false;
                     }
-                    console.warn( "WSClient websocket error during open/negotation:", e );
+                    console.warn( "wsclient: websocket error during open/negotation:", e );
                 } else {
-                    console.warn( "WSClient websocket error:", e );
+                    console.warn( "wsclient: websocket error:", e );
                 }
                 try {
                     self.websocket.terminate();
                 } catch ( err ) {
-                    console.log( 8, "WSClient error terminating socket: %2", err );
+                    debug( 8, "wsclient: error while terminating socket:", err );
                 }
                 if ( !connected ) {
                     reject( e );
                 }
             });
         }).catch( err => {
-            console.log( 5, "WSClient open caught %2", err );
+            debug( "wsclient: open caught", err );
             try {
                 self.websocket.terminate();
             } catch( err ) {
@@ -154,7 +155,7 @@ module.exports = class WSClient {
         this.pingTimer = false;
         if ( this.websocket ) {
             if ( ! this.pingok ) {
-                console.error( "WSClient websocket to %2 ping got no reply!", this, this.url );
+                console.error( "wsclient: ping got no timely reply from", this.url );
                 this.terminate();
                 return;
             }
@@ -214,11 +215,9 @@ module.exports = class WSClient {
             for ( let handler of ( this.handlers[ event ] || [] ) ) {
                 let allargs = ( handler.args || [] ).concat( data );
                 try {
-                    console.log("handler",handler);
                     handler.callback( ...allargs );
                 } catch ( err ) {
-                    console.error( "Handler for", event, "threw uncaught exception:", err );
-                    console.error( err );
+                    console.error( `wsclient: handler for ${event} threw untrapped exception:`, err );
                 }
             }
             resolve();
