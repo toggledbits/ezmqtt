@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "ssh://patrick@192.168.0.15/volume1/git/ezmqtt.git"
+    "url": "https://github.com/toggledbits/ezmqtt.git"
   },
   "author": "Patrick Rigney/Kedron Holdings LLC <patrick@toggledbits.com>",
   "license": "SEE LICENSE IN LICENSE.md",

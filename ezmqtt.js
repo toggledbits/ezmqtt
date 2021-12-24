@@ -20,6 +20,7 @@ const EzloClient = require( './lib/ezlo' );
 var mqtt_client = false;
 var stopping = false;
 
+console.log( "ezmqtt (C) 2021 Patrick H. Rigney, All Rights Reserved; please see https://github.com/toggledbits/ezmqtt/blob/main/LICENSE.md" );
 console.log( "ezmqtt", version, "in", path.resolve( '.' ), 'run from' , __dirname );
 var cf = path.resolve( process.env.EZMQTT_VAR || ".", "ezmqtt-config.yaml" );
 console.log( `ezmqtt: configuration path ${cf}` );
