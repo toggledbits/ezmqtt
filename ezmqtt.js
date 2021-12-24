@@ -1,7 +1,19 @@
 #!/usr/bin/env node
 
-/* ezmqtt -- Copyright (C) 2021, Patrick H. Rigney, All Rights Reserved
- * Licensed under GPL 3.0; please see https://....???
+/* ezmqtt -- An MQTT interface for Ezlo hubs
+Copyright (C) 2021, Patrick H. Rigney, All Rights Reserved
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 /* TO-DO:

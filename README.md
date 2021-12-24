@@ -74,7 +74,7 @@ Commanding devices on Ezlo hubs is generally done by setting item values. For ex
 
 Notice that the former uses the item name, and the latter uses the unique item ID. See *Telemetry Topics* for a review of why this apparent inconsistency was chosen.
 
-If these topics are given with a payload, *ezmqtt* will attempt to set the target item's value to the payload. Payload for simple (primitive) type, like numbers, booleans, and strings, are given directly as presented (e.g. the payload "50" would represent either the string "50" or the number 50). Because all MQTT payloads are strings, *ezmqtt* will attempt conversion of the payload to the type required by the item. Other types (arrays, objects) must be given in JSON form and are passed through directly with no conversion (so make sure the payload meets the requirements of the item).
+If these topics are published with a payload, *ezmqtt* will attempt to set the target item's value to the payload. Payloads for simple (primitive) types, like numbers, booleans, and strings, are given directly as presented (e.g. the payload "50" would represent either the string "50" or the number 50). Because all MQTT payloads are strings at the protocol level, *ezmqtt* will attempt conversion of the payload to the type required by the item. Other types (arrays, objects) must be given in JSON form and are passed through directly with no conversion (so make sure the payload meets the requirements of the item).
 
 If either of the above topics is sent with no payload, the current value of the item is published. This makes it possible to query an item.
 
