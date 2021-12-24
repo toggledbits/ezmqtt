@@ -25,7 +25,7 @@ The image requires a bind mount at `/var/ezmqtt` to a directory of your choice o
 It is possible, perhaps even recommended, to run *ezmqtt* with *docker-compose*. The following is a pro-forma compose file for that purpose:
 
 ```
-# ezmqtttemplate docker-compose.yml (version 21357)
+# ezmqtt template docker-compose.yml (version 21357)
 #
 # Change the lines indicated by "DO"...
 #
@@ -46,11 +46,12 @@ services:
     image: toggledbits/ezmqtt:latest-generic-amd64
 
     restart: "on-failure"
+
     volumes:
-        # DO change the /home/username/ezmqtt below to the directory you created for
-        # your local data; DO NOT change the /var/ezmqtt part
-      - /home/username/ezmqtt:/var/ezmqtt
       - /etc/localtime:/etc/localtime:ro
+      # DO change the /home/username/ezmqtt below to the directory you created for
+      # your local configuration and data; DO NOT change the /var/ezmqtt part.
+      - /home/username/ezmqtt:/var/ezmqtt
     tmpfs: /tmp
 ```
 

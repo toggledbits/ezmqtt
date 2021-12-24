@@ -32,8 +32,15 @@ const EzloClient = require( './lib/ezlo' );
 var mqtt_client = false;
 var stopping = false;
 
-console.log( "ezmqtt (C) 2021 Patrick H. Rigney, All Rights Reserved; please see https://github.com/toggledbits/ezmqtt/blob/main/LICENSE.md" );
-console.log( "ezmqtt", version, "in", path.resolve( '.' ), 'run from' , __dirname );
+console.log( "ezmqtt (C) 2021 Patrick H. Rigney, All Rights Reserved");
+console.log( "Please see license at https://github.com/toggledbits/ezmqtt" );
+console.log( "Version", version, "in", path.resolve( '.' ), 'run from' , __dirname );
+
+/* Find the configuration file. Docker containers will set EZMQTT_VAR; if not
+ * set, use the directory from whence the command was launched (not
+ * necessarily where this file may be installed, which is often a system
+ * directory and not a good spot for a config file like this).
+ */
 var cf = path.resolve( process.env.EZMQTT_VAR || ".", "ezmqtt-config.yaml" );
 console.log( `ezmqtt: configuration path ${cf}` );
 if ( ! fs.existsSync( cf ) ) {
@@ -56,7 +63,7 @@ try {
 
 if ( "12345678" === ( config.ezlo_hub.serial || "12345678" ) ) {
     console.error( "ezmqtt: configuration required; please refer to the README" );
-    process.exit( 2 );
+    process.exit( 0 ); /* non-failure to try to avoid docker auto-restarts (on-failure) */
 }
 
 config.mqtt = config.mqtt || {};
