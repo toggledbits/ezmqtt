@@ -55,7 +55,7 @@ Detailed logging can be turned on or off by setting the `debug` key in the confi
 * `ezmqtt/tele/device/<device-id>/item/<item-name>`
 * `ezmqtt/tele/item/<item-id>`
 
-The reason for two equivalent messages is simply to give the end-user choice. It's harder to wrangler with IDs, and item IDs can be problematic if the device is reinventoried/reconfigured and the items purged and recreated. It may seem inconsistent in the first topic to use item name with device ID rather than device name, but device names are not stable references to a device (you can change the name, wrecking your code/rules/conditions). Since device IDs are stable and far fewer in number than item IDs, this was deemed an acceptable, perhaps even desirable, trade-off.
+The reason for two equivalent messages is simply to give the end-user choice. It's harder to wrangle with the large number of item IDs (even just discovering them), and item IDs can be problematic if the device is reinventoried/reconfigured and the items purged and recreated (they change). It may seem inconsistent in the first topic to use item name with device ID rather than device name, but device names are not stable references to a device (you can change the name, wrecking your code/rules/conditions). Since device IDs are stable and far fewer in number than item IDs, this was deemed an acceptable, perhaps even desirable, trade-off.
 
 When a device changes (i.e. its name, reachability, etc.), the `ezmqtt/tele/device` topic is published by *ezmqtt*. The payload is an object containing the full device data as reported by the hub, extended to include the current value of all items associated with the device (an object under the `items` key within the payload).
 
@@ -63,16 +63,16 @@ The `ezmqtt/tele/mode/changing` is sent when a house mode change is initiated. W
 
 The `ezmqtt/tele/hub/status` topic is published when the hub reports a change in its gateway status.
 
-All of the above topics except `ezmqtt/tele/mode/changing` are sent with QoS 1 and message retention requested. In this way, subscribers will get immediate updates upon subscription to the broker.
+All of the above topics except `ezmqtt/tele/mode/changing` are sent with QoS 1 and message retention requested. In this way, subscribers will get immediate updates upon subscription to the broker (if the broker is MQTT 3.1.1 compliant).
 
 ## Commanding Devices
 
-Ezlo hubs generally command devices by setting item values. For example, if you want a dimmer at 50%, you would use `hub.item.value.set` to set the `dimmer` item's value to 50. The following topics are defined for this purpose and can be published by your applications:
+Commanding devices on Ezlo hubs is generally done by setting item values. For example, if you want a dimmer set to 50%, you would use `hub.item.value.set` to set the device's `dimmer` item value to 50. The following topics are defined for this purpose and can be published by your applications:
 
 * `ezmqtt/set/device/<device-id>/item/<item-name>`
 * `ezmqtt/set/item/<item-id>`
 
-Notice that the former uses the item name, and the latter uses the unique device ID. See *Telemetry Topics* for a review of why this apparent inconsistency was chosen.
+Notice that the former uses the item name, and the latter uses the unique item ID. See *Telemetry Topics* for a review of why this apparent inconsistency was chosen.
 
 If these topics are given with a payload, *ezmqtt* will attempt to set the target item's value to the payload. Payload for simple (primitive) type, like numbers, booleans, and strings, are given directly as presented (e.g. the payload "50" would represent either the string "50" or the number 50). Because all MQTT payloads are strings, *ezmqtt* will attempt conversion of the payload to the type required by the item. Other types (arrays, objects) must be given in JSON form and are passed through directly with no conversion (so make sure the payload meets the requirements of the item).
 
