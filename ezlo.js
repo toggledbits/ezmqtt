@@ -51,7 +51,6 @@ module.exports = class EzloClient {
             /* IP address only */
             this.endpoint = "wss://" + config.endpoint + ":17000";
         }
-        console.log("ENDPOINT",this.endpoint);
         if ( isUndef( config.username ) && isUndef( config.password ) ) {
             this.require_auth = AUTH_NONE;
         } else if ( ( this.endpoint || "" ).match( /^wss?:\/\// ) ) {
@@ -254,6 +253,7 @@ module.exports = class EzloClient {
         return new Promise( async ( resolve, reject ) => {
             let auth_p;
             if ( loginfo[ self.config.username ] ) {
+                debug( "ezlo: checking cached cloud auth" );
                 let ll = await loginfo[ self.config.username ];
                 if ( ll.expires > Date.now() ) {
                     /* Already logged in (user cloud auth ) */
@@ -319,6 +319,9 @@ module.exports = class EzloClient {
                     reject( err );
                 });
             }
+            auth_p.catch( err => {
+                console.log("AUTH",err);
+            });
             if ( AUTH_REMOTE === self.require_auth ) {
                 /* Log in through remote access API */
                 // Ref: https://community.ezlo.com/t/ezlo-linux-firmware-http-documentation-preview/214564/143?u=rigpapa
@@ -695,6 +698,7 @@ module.exports = class EzloClient {
                     break;
 
                 case "hub.network.changed":
+                    // {"id":"ui_broadcast","msg_id":"61c53413123e5912538942d7","msg_subclass":"hub.network.changed","result":{"interfaces":[{"_id":"eth0","internetAvailable":true,"ipv4":{"dns":["192.168.0.15","192.168.0.44"],"gateway":"192.168.0.1","ip":"192.168.0.67","mask":"255.255.255.0"},"status":"up"}],"syncNotification":false}}
                     {
                         debug( "ezlo: hub.network.changed", event );
                     }
@@ -727,8 +731,10 @@ module.exports = class EzloClient {
                                 }
                             }
                         */
-                        debug( "ezlo: handling device update for", event.result._id, event.result.deviceName );
-                        this.devices[ event.result._id ] = event.result;
+                        debug( "ezlo: handling device update for", event.result._id );
+                        for ( let [ key, value ] of Object.entries( event.result ) ) {
+                            this.devices[ event.result._id ][ key ] = value;
+                        }
                         this.trigger( 'device-updated', event.result );
                     }
                     break;
@@ -795,6 +801,7 @@ module.exports = class EzloClient {
                     break;
 
                 case "hub.scene.added":
+                    // {"id":"ui_broadcast","msg_id":"61c534d5123e5912538942d9","msg_subclass":"hub.scene.added","result":{"_id":"61c534d5123e59128604c10a","enabled":true,"house_modes":["1","2","3","4"],"is_group":false,"name":"Something","parent_id":"","syncNotification":true,"then":[{"_id":"61c534d5123e59128604c10b","blockOptions":{"method":{"args":{"item":"item","value":"value"},"name":"setItemValue"}},"blockType":"then","fields":[{"name":"item","type":"item","value":"61c393f4123e5921f55e806a"},{"name":"value","type":"int","value":0}]}],"user_notifications":[],"when":[]}}
                     {
                     }
                     break;
@@ -805,11 +812,14 @@ module.exports = class EzloClient {
                     break;
 
                 case "hub.scene.changed":
+                    // {"id":"ui_broadcast","msg_id":"61c5353c123e5912538942de","msg_subclass":"hub.scene.changed","result":{"_id":"61c534d5123e59128604c10a","enabled":true,"group_id":"","house_modes":["1","2","3","4"],"is_group":false,"name":"Something","parent_id":"0","syncNotification":false,"then":[{"_id":"61c5353c123e59128604c10d","blockOptions":{"method":{"args":{"item":"item","value":"value"},"name":"setItemValue"}},"blockType":"then","fields":[{"name":"item","type":"item","value":"61c393f4123e5921f55e806a"},{"name":"value","type":"int","value":0}]}],"user_notifications":[],"when":[]}}
                     {
                     }
                     break;
 
                 case "hub.scene.run.progress":
+                    // {"id":"ui_broadcast","msg_id":"61c534f0123e5912538942db","msg_subclass":"hub.scene.run.progress","result":{"notifications":[],"scene_id":"61c534d5123e59128604c10a","scene_name":"Something","status":"started","userNotification":false}}
+                    // {"id":"ui_broadcast", "msg_id":"61c534f0123e5912538942dc","msg_subclass":"hub.scene.run.progress","result":{"notifications":[],"scene_id":"61c534d5123e59128604c10a","scene_name":"Something","status":"finished","userNotification":true}}
                     {
                     }
                     break;
