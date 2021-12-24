@@ -2,10 +2,11 @@
   "name": "ezmqtt",
   "version": "0.1.21357",
   "description": "EZMQTT - an MQTT Interface for Ezlo Hubs",
-  "main": "ezmqtt.js",
+  "bin": "./ezmqtt.js",
   "private": false,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "./scripts/postinstall.sh"
   },
   "repository": {
     "type": "git",
@@ -13,6 +14,10 @@
   },
   "author": "Patrick Rigney/Kedron Holdings LLC <patrick@toggledbits.com>",
   "license": "SEE LICENSE IN LICENSE.md",
+  "funding": {
+      "type": "individual",
+      "url": "https://www.toggledbits.com/donate"
+  },
   "dependencies": {
     "https": "^1.0.0",
     "js-yaml": "^3.14.1",

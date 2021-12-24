@@ -1,13 +1,13 @@
+#!/usr/bin/env node
+
 /* ezmqtt -- Copyright (C) 2021, Patrick H. Rigney, All Rights Reserved
  * Licensed under GPL 3.0; please see https://....???
  */
 
 /* TO-DO:
  *  set config values via MQTT?
- *  Config file
- *  Build for NPM
  *  Build for Docker
- * persistent storage?
+ * persistent storage for devices/items?
  */
 const version = 21357;
 
@@ -20,11 +20,31 @@ const EzloClient = require( './lib/ezlo' );
 var mqtt_client = false;
 var stopping = false;
 
-console.log("ezmqtt",version,"starting in",path.resolve('.'),'from',__dirname);
+console.log( "ezmqtt", version, "in", path.resolve( '.' ), 'run from' , __dirname );
+var cf = path.resolve( process.env.EZMQTT_VAR || ".", "ezmqtt-config.yaml" );
+console.log( `ezmqtt: configuration path ${cf}` );
+if ( ! fs.existsSync( cf ) ) {
+    try {
+        fs.copyFileSync( path.resolve( __dirname, "./ezmqtt-config.yaml-dist" ), cf );
+    } catch( err ) {
+        console.error( `ezmqtt: failed to copy configuration template:`, err );
+        process.exit( 1 );
+    }
+}
+var config;
+try {
+    const yaml = require( 'js-yaml' );
+    config = fs.readFileSync( cf );
+    config = yaml.safeLoad( config );
+} catch ( err ) {
+    console.error( `ezmqtt: failed to read configuration ${cf}:`, err );
+    process.exit( 1 );
+}
 
-const yaml = require( 'js-yaml' );
-var config = fs.readFileSync( "./ezmqtt-config.yaml" );
-config = yaml.safeLoad( config );
+if ( "12345678" === ( config.ezlo_hub.serial || "12345678" ) ) {
+    console.error( "ezmqtt: configuration required; please refer to the README" );
+    process.exit( 2 );
+}
 
 config.mqtt = config.mqtt || {};
 config.mqtt.url = config.mqtt.url || "mqtt://127.0.0.1:1883"
