@@ -1,29 +1,42 @@
 {
-  "name": "ezmqtt",
-  "version": "0.1.21357",
-  "description": "EZMQTT - an MQTT Interface for Ezlo Hubs",
-  "bin": "./ezmqtt.js",
-  "private": false,
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "postinstall": "./scripts/postinstall.sh"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/toggledbits/ezmqtt.git"
-  },
-  "author": "Patrick Rigney/Kedron Holdings LLC <patrick@toggledbits.com>",
-  "license": "SEE LICENSE IN LICENSE.md",
-  "funding": {
-      "type": "individual",
-      "url": "https://www.toggledbits.com/donate"
-  },
-  "dependencies": {
-    "https": "^1.0.0",
-    "js-yaml": "^3.14.1",
-    "mqtt": "^4.2.8",
-    "node-fetch": "^2.6.5",
-    "uuid": "^8.3.2",
-    "ws": "^7.5.5"
-  }
+    "name": "ezmqtt",
+    "version": "0.1.21357",
+    "description": "EZMQTT - an MQTT Interface for Ezlo Hubs",
+    "keywords": [
+        "ezlo",
+        "mqtt",
+        "node-red",
+        "nodered"
+    ],
+    "private": false,
+    "bin": "./ezmqtt.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "postinstall": "./scripts/postinstall.sh"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/toggledbits/ezmqtt.git"
+    },
+    "bugs": {
+        "url": "https://github.com/toggledbits/ezmqtt/issues"
+    },
+    "author": {
+        "name": "Patrick Rigney",
+        "url": "https://www.toggledbits.com/",
+        "email": "patrick@toggledbits.com"
+    },
+    "license": "GPL-3.0",
+    "funding": {
+        "type": "individual",
+        "url": "https://www.toggledbits.com/donate"
+    },
+    "dependencies": {
+        "https": "^1.0.0",
+        "js-yaml": "^3.14.1",
+        "mqtt": "^4.2.8",
+        "node-fetch": "^2.6.5",
+        "uuid": "^8.3.2",
+        "ws": "^7.5.5"
+    }
 }
