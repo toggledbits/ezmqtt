@@ -22,10 +22,36 @@ Docker images for various architectures are available (officially) from the [*to
 
 The image requires a bind mount at `/var/ezmqtt` to a directory of your choice outside the container. It is here that the *ezmqtt* configuration file will live, and any data dump and log files will be written.
 
-It is possible, perhaps even recommended, to run *ezmqtt* under *docker-compose*. The following is a pro-forma compose file for that purpose:
+It is possible, perhaps even recommended, to run *ezmqtt* with *docker-compose*. The following is a pro-forma compose file for that purpose:
 
 ```
-# TBD - compose file
+# ezmqtttemplate docker-compose.yml (version 21357)
+#
+# Change the lines indicated by "DO"...
+#
+version: '3'
+
+services:
+  web:
+    container_name: ezmqtt
+    environment:
+      # DO change the TZ: line to set your local time zone.
+      # See valid TZ list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+      TZ: America/New_York
+      #
+      # DO NOT change this path. Your directory location is in "source" below.
+      EZMQTT_VAR: /var/ezmqtt
+
+    # DO change the image below to the one you are using, if necessary.
+    image: toggledbits/ezmqtt:latest-generic-amd64
+
+    restart: "on-failure"
+    volumes:
+        # DO change the /home/username/ezmqtt below to the directory you created for
+        # your local data; DO NOT change the /var/ezmqtt part
+      - /home/username/ezmqtt:/var/ezmqtt
+      - /etc/localtime:/etc/localtime:ro
+    tmpfs: /tmp
 ```
 
 ## Configuration
