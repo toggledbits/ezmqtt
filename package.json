@@ -1,9 +1,9 @@
 {
   "name": "ezmqtt",
-  "version": "0.1-21357",
+  "version": "0.1.21357",
   "description": "EZMQTT - an MQTT Interface for Ezlo Hubs",
-  "main": "app.js",
-  "private": true,
+  "main": "ezmqtt.js",
+  "private": false,
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -16,10 +16,8 @@
   "dependencies": {
     "https": "^1.0.0",
     "js-yaml": "^3.14.1",
-    "jshint": "^2.13.1",
     "mqtt": "^4.2.8",
     "node-fetch": "^2.6.5",
-    "trace-unhandled": "^2.0.1",
     "uuid": "^8.3.2",
     "ws": "^7.5.5"
   }

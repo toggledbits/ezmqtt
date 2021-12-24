@@ -1,0 +1,48 @@
+# Configuration file for ezmqtt
+# Most of this should be pretty self-explanatory, but you may want to look
+# at the docs to read some of the details about cloud vs local API conn-
+# ections to the hub.
+# Template version 21357
+---
+# Configuration for the MQTT broker.
+mqtt:
+  #
+  # url - URL to MQTT broker. If not set, default is mqtt://127.0.0.1
+  #url: mqtt://127.0.0.1:1883
+  #
+  # ident - By default, all published (and received) MQTT messages for ezmqtt
+  #         begin with "ezmqtt". If you run several instances of ezmqtt (be-
+  #         cause you have several hubs), you will want to use a unique value
+  #         for "ident" for each instance, which will change the topic prefix
+  #         used by that instance. If you only run one instance of ezmqtt, you
+  #         should not set or change this value.
+  #ident: ezmqtt
+  #
+  # debug - When true, turns on debugging of the MQTT side of things.
+  #debug: false
+
+# Configuration for the Ezlo hub
+ezlo_hub:
+  #
+  # serial - The serial number of the hub to be connected. The hub must be
+  #          registered with the Ezlo cloud, and visible in their mobile app.
+  serial: "12345678"
+  #
+  # username - The username (Ezlo cloud services account) to use for hub conn-
+  #            ection. You may use an existing username, or create a new one
+  #            in the Ezlo/Vera Mobile application just for this purpose (not
+  #            a bad idea).
+  username: "youtellme"
+  #
+  # password - The password for the above-named user.
+  password: "iwillnottellyou"
+  #
+  # endpoint - Optional, but recommended; this is the IP address (or WebSocket
+  #            URL) of the hub on your local LAN. If your hub supports local
+  #            API access, the local API endpoint will be used rather than the
+  #            cloud relay. Please refer to the ezmqtt README file for further
+  #            explanation.
+  endpoint: 169.254.0.10
+  #
+  # debug - When true, turns of debug logging for the hub side of things.
+  #debug: false

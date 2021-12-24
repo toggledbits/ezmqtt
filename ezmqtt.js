@@ -15,10 +15,12 @@ const fs = require('fs');
 const path = require('path');
 const mqtt = require( 'mqtt' );
 
-const EzloClient = require( './ezlo' );
+const EzloClient = require( './lib/ezlo' );
 
 var mqtt_client = false;
 var stopping = false;
+
+console.log("ezmqtt",version,"starting in",path.resolve('.'),'from',__dirname);
 
 const yaml = require( 'js-yaml' );
 var config = fs.readFileSync( "./ezmqtt-config.yaml" );
@@ -133,7 +135,7 @@ var retries = 0;
 async function start_mqtt() {
     return new Promise( ( resolve ) => {
         let url = config.mqtt.url || "mqtt://127.0.0.1:1883";
-        console.log("Connecting to broker %1", url);
+        console.log("Connecting to broker", url);
         let copt = config.mqtt.options || {};
         if ( config.mqtt.username ) {
             copt.username = config.mqtt.username;
@@ -267,7 +269,7 @@ function ezlo_health_check() {
 
 process.on( 'unhandledRejection', ( reason, promise ) => {
     try {
-        console.error( "Trapped unhandled Promise rejection: %1", reason );
+        console.error( "Trapped unhandled Promise rejection:", reason );
         console.error( reason );
         console.error( promise );
         console.trace();
