@@ -319,6 +319,37 @@ process.on( 'unhandledRejection', ( reason, promise ) => {
     }
 });
 
+async function shutdown_handler( sig ) {
+    console.log( "ezmqtt: exiting, got", sig );
+    stopping = true;
+    offline();
+    try {
+        if ( this.client ) {
+            console.log( "mqtt: closing broker connection" );
+            this.client.close();
+        }
+    } catch ( err ) {
+        console.error( err );
+    } finally {
+        this.client = false;
+    }
+    try {
+        ezlo.stop();
+    } catch ( err ) {
+        console.error( err );
+    }
+    if ( 'SIGQUIT' === sig ) {
+        process.exit( 0 );
+    } else {
+        process.exit( 1 );
+    }
+}
+
+process.on( 'SIGINT', shutdown_handler );
+process.on( 'SIGTERM', shutdown_handler );
+process.on( 'SIGQUIT', shutdown_handler );
+process.on( 'SIGUSR1', shutdown_handler );
+
 /* Main */
 const ezlo = new EzloClient( config.ezlo_hub );
 
