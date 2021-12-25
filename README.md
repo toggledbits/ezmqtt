@@ -2,6 +2,19 @@
 
 *ezmqtt* is a gateway between Ezlo hubs and MQTT brokers. It enables you to use your Ezlo hub with MQTT-compatible subsystems and applications like *Node-RED* and others. It monitors the hub for state changes and publishes them as MQTT topics.
 
+    ezmqtt/tele/device/83827728388438a/item/dimmer 50         # published when dimmer set to 50%
+    ezmqtt/set/device/83827728388438a/item/dimmer 0           # changes the dimmer to off (0%)
+    ezmqtt/tele/device/3789348572888a0/item/freeze_alarm freeze_detected      # published when freeze sensor is tripped
+    ezmqtt/cmd/hub/reboot     # commands the hub to reboot
+
+* All devices and items are published.
+* House mode changes, including pending change, are published.
+* Hub state changes are published.
+* Devices may be commanded by setting item values (the Ezlo model) through published topics.
+* Any Ezlo API method can be run through a published topic.
+* Connects to API through local interface or Ezlo cloud relay (configurable).
+* Works with Ezlo Plus, Secure, Atom, and PlugHub.
+
 This is a community supported project. If you find *ezmqtt* useful, please consider making a donation at [https://www.toggledbits.com/donate](https://www.toggledbits.com/donate) (PayPal, BTC), and thank you in advance for your support. I am not affiliated with Ezlo Innovation, just a long-time independent developer in the IoT space who likes to make cool tools.
 
 ## Installation
@@ -14,13 +27,34 @@ To install using *npm*, you will need to have *nodejs* version 16.13 (LTS) or hi
 
     npm i -g ezmqtt
 
-The configuration file `ezmqtt-config.yaml` will then need to be edited. This file will be in the directory in which *ezmqtt* was installed, usually in the library path of your system. 
+Then, go into the directory (you may need to create one) where you'd like to keep the *ezmqtt* configuration, logs and data files. Then do an initial run:
 
-### Via DockerHub (Docker image)
-	
+    ezmqtt
+
+*ezmqtt* will run briefly and then stop if it has never run before and is not fully configured. You should see output similar to the following:
+
+```
+ezmqtt (C) 2021 Patrick H. Rigney, All Rights Reserved
+Please see license at https://github.com/toggledbits/ezmqtt
+Version xxxxx in <current-dir> from <install-dir>
+ezmqtt: configuration path <current-dir>/ezmqtt-config.yaml
+ezmqtt: configuration required; please refer to the README
+```
+
+The configuration file `ezmqtt-config.yaml` will then need to be edited. Proceed to *Configuration* below.
+
+### Via DockerHub (Docker image/container)
+
 Docker images for various architectures are available (officially) from the [*toggledbits* DockerHub repository](https://hub.docker.com/r/toggledbits/ezmqtt).
 
-The image requires a bind mount at `/var/ezmqtt` to a directory of your choice outside the container. It is here that the *ezmqtt* configuration file will live, and any data dump and log files will be written.
+When creating a container from the image, you need to create a bind mount at `/var/ezmqtt` to a directory of your choice outside the container. It is here that the *ezmqtt* configuration file will live, and any data dump and log files will be written. For example:
+
+```
+docker run --name ezmqtt -d --restart on-failure \
+    --mount type=bind,src=/home/username/ezmqtt,target=/var/ezmqtt \
+    --mount type=bind,src=/etc/localtime,target=/etc/localtime \
+    toggledbits/ezmqtt:latest-generic-amd64
+```
 
 It is possible, perhaps even recommended, to run *ezmqtt* with *docker-compose*. The following is a pro-forma compose file for that purpose:
 
@@ -55,25 +89,31 @@ services:
     tmpfs: /tmp
 ```
 
+The logs are viewable using the `docker logs [-f] <container-name>` command.
+
 ## Configuration
+
+The configuration file `ezmqtt-config.yaml` is a YAML file containing two sections (as objects): the `mqtt` section configures the MQTT broker connection, and the `ezlo_hub` section configures the Ezlo hub connection.
 
 ### Configuring the MQTT Broker Connection
 
-The only configuration item needed for the MQTT broker connection is `mqtt`, the value of which is the URL to connect to your MQTT broker. If not set, the default `mqtt://127.0.0.1:1883` is used (*ezmqtt* attempts to find the broker on `localhost`).
+The only configuration key needed for the MQTT broker connection is `mqtt`, the value of which is the URL to connect to your MQTT broker. If not set, the default `mqtt://127.0.0.1:1883` is used (*ezmqtt* attempts to find the broker on `localhost`, the host in which *ezmqtt* is also running).
 
 ### Configuring the Ezlo Hub Connection
 
-By default, Ezlo hubs require an access token, obtained from their cloud services, to access the API on the hub (needed for *ezmqtt*). Once an access token is acquired, the hub can then be accessed via its local API (recommended), or using the cloud relay (the only option available for older Atom and PlugHub hubs, which don't have local API access).
+By default, Ezlo hubs require an *access token*, obtained from the Ezlo cloud services, to access the API on the hub (needed for *ezmqtt*). Once an access token is acquired, the hub can then be accessed via its local API (recommended), or using the cloud relay (the only option available for older Atom and PlugHub hubs, which don't have local API access). The access token expires periodically and needs to be refreshed, which occurs automatically.
 
 * `serial` &mdash; serial number of the hub to be connected
 * `username` and `password` &mdash; access credentials for the Ezlo cloud services. Set up a username and password in the Ezlo/Vera mobile application.
-* `endpoint` &mdash; (optional) the IP address or websocket URL to which the data connection should be made. When this key is used (recommended), the value must be the local IP address of the hub, or a WebSocket URL in the form `wss://local-hub-ip-or-hostname:17000`. If this key is not used, *ezmqtt* will use the Ezlo cloud relay.
+* `endpoint` &mdash; (optional, but recommended) the IP address or websocket URL to which the data connection should be made. When specified, the value must be the local IP address of the hub or a complete WebSocket URL in the form `wss://local-hub-ip-or-hostname:17000`. If this key is specified, *ezmqtt* will use the Ezlo cloud relay.
 
-The use of the cloud relay for "production" home automation is not recommended, as it creates a heavy, ongoing dependency on Internet access and the Ezlo cloud services availability. When the `endpoint` is specified, the cloud services are only used to acquire an access token, which is long-lived (relatively speaking) and can survive brief outages. In the long run, however, you may want to consider setting up the hub for *offline anonymous access*, which allows *ezmqtt* to access the local API on the hub without an access token from the cloud (or any other authentication), removing the cloud dependency entirely. See the detailed discussion under *Ezlo Offline Anonymous Access* below for more information.
+The use of the cloud relay for "production" home automation is not recommended, as it creates a heavy, ongoing dependency on Internet access and the Ezlo cloud services availability. When the `endpoint` is specified, the cloud services are only used to acquire an access token, which is long-lived (relatively speaking) and can survive brief outages. In the long run, however, you may also want to consider setting up the hub for *offline anonymous access*, which allows *ezmqtt* to access the local API on the hub without an access token from the cloud (or any other authentication), removing the cloud dependency entirely. See the detailed discussion under *Ezlo Offline Anonymous Access* below for more information.
 
 ### Logging Configuration
 
-Detailed logging can be turned on or off by setting the `debug` key in the configuration to `true` or `false`, respectively.
+Detailed logging can be turned on or off by setting the `debug` key in the configuration to `true` or `false`, respectively. It is recommended that detailed logging only be used when troubleshooting or trying to discover device/item behaviors.
+
+Docker users: the logs for the container can be viewed or captured with `docker logs [-f] <container-name>`.
 
 ## Telemetry Topics Published
 
@@ -125,7 +165,7 @@ Because the default configuration of an Ezlo hub requires that an authorization 
 
 Ezlo's security intent here is a Good Thing, but it always comes with a trade-off. Only you can judge if the risk created by power failures, Internet outages, and lapses in uptime of Ezlo's cloud services is acceptable when weighed against the need of your home automation/application for accuracy and uptime. If you can't bear that risk, there is an option: *offline anonymous access*.
 
-Enabling offline anonymous access on the hub allows an application (like *ezmqtt*) to access the hub without an authorization token, or any authentication of any kind. This eliminates the dependencies on both Internet access and Ezlo's cloud services, but comes with the trade-off that the security of the hub is degraded by the local API connection being fully open. It would be required of you, then, to take other approaches to securing the hub from unauthorized access. There are no free lunches, particularly in network security. 
+Enabling offline anonymous access on the hub allows an application (like *ezmqtt*) to access the hub without an authorization token, or any authentication of any kind. This eliminates the dependencies on both Internet access and Ezlo's cloud services, but comes with the trade-off that the security of the hub is degraded by the local API connection being fully open. It would be required of you, then, to take other approaches to securing the hub from unauthorized access. There are no free lunches, particularly in network security.
 
 **Note that since local API access is not a feature of early Atom and PlugHub models, authenticated or otherwise, this feature is not available to them and this section does not apply.** These early models are highly cloud dependent, and in my opinion, a waste of money for any serious home automation.
 
