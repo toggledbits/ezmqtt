@@ -21,7 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *  Build for Docker
  * persistent storage for devices/items?
  */
-const version = 21357;
+const version = 21358;
 
 const fs = require('fs');
 const path = require('path');
