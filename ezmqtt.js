@@ -21,13 +21,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *  Build for Docker
  * persistent storage for devices/items?
  */
-const version = 21358;
+const version = 22002;
 
 const fs = require('fs');
 const path = require('path');
 const mqtt = require( 'mqtt' );
 
-const EzloClient = require( './lib/ezlo' );
+const EzloClient = require( './lib/ezloclient' );
 
 var mqtt_client = false;
 var stopping = false;
@@ -109,6 +109,15 @@ function mqtt_device_message( topic, payload ) {
         }
     } else {
         console.log( `mqtt: topic <${topic}> can't locate device` );
+    }
+}
+
+function mqtt_mode_message( topic, payload ) {
+    if ( payload ) {
+        ezlo.setHouseMode( payload );
+    } else {
+        let mode = ezlo.getHouseMode();
+        mqtt_send( `tele/mode/current`, data );
     }
 }
 
@@ -224,6 +233,8 @@ async function start_mqtt() {
                     mqtt_device_message( topic, payload );
                 } else if ( topic.match( /^.*\/set\/item\/[^/]*$/ ) ) {
                     mqtt_item_message( topic, payload );
+                } else if ( topic.match( /^.*\/set\/mode$/ ) ) {
+                    mqtt_mode_message( topic, payload );
                 } else if ( topic.match( /^.*\/cmd\// ) ) {
                     let m = topic.match( /cmd\/(.+)/ );
                     if ( 2 === m.length ) {
@@ -288,25 +299,6 @@ function mqtt_recycle() {
     }
 }
 
-// ??? mode into ezlo.js? needed at all?
-var ezlo_health_check_timer = false;
-function ezlo_health_check() {
-    ezlo_health_check_timer = false;
-    if ( ezlo.connected() ) {
-        console.log( 'mqtt: ezlo health check starting' );
-        ezlo.send( 'hub.software.info.get', {} ).then( () => {
-            debug( 'mqtt: ezlo connection responding OK' );
-        }).catch( err => {
-            console.warn( 'mqtt: ezlo connection failed to respond timely; recycling.' );
-            ezlo.stop().then( () => {
-                ezlo.start();
-            });
-        }).finally( () => {
-            ezlo_health_check_timer = setTimeout( ezlo_health_check, 5000 );
-        });
-    }
-}
-
 process.on( 'unhandledRejection', ( reason, promise ) => {
     try {
         console.error( "Trapped unhandled Promise rejection:", reason );
@@ -334,7 +326,7 @@ async function shutdown_handler( sig ) {
         this.client = false;
     }
     try {
-        ezlo.stop();
+        await ezlo.stop();
     } catch ( err ) {
         console.error( err );
     }
