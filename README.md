@@ -153,7 +153,7 @@ The `method-name` may be given in Ezlo's standard form (e.g. `hub.device.setting
 
 ## Nodes for *Node-RED*
 
-I am writing and will be publishing a set of nodes for *Node-RED* &mdash; coming soon!
+I have also published a set of *Node-RED* nodes as a more direct interface. Find that in [the Node-RED Node Library](https://flows.nodered.org/node/node-red-contrib-ezlo).
 
 ## Cautions
 
