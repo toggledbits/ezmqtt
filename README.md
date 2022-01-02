@@ -1,4 +1,10 @@
 # ezmqtt
+![License](https://img.shields.io/github/license/toggledbits/ezmqtt)
+[![NPM](https://img.shields.io/npm/v/ezmqtt?logo=npm)](https://www.npmjs.org/package/ezmqtt)
+[![Open Issues](https://img.shields.io/github/issues-raw/toggledbits/ezmqtt.svg)](https://github.com/toggledbits/ezmqtt/issues)
+[![Closed Issues](https://img.shields.io/github/issues-closed-raw/toggledbits/ezmqtt.svg)](https://github.com/toggledbits/ezmqtt/issues?q=is%3Aissue+is%3Aclosed)
+[![Downloads](https://img.shields.io/npm/dm/ezmqtt.svg)](https://www.npmjs.com/package/ezmqtt)
+[![Total Downloads](https://img.shields.io/npm/dt/ezmqtt.svg)](https://www.npmjs.com/package/ezmqtt)
 
 *ezmqtt* is a gateway between Ezlo hubs and MQTT brokers. It enables you to use your Ezlo hub with MQTT-compatible subsystems and applications like *Node-RED* and others. It monitors the hub for state changes and publishes them as MQTT topics.
 
@@ -164,7 +170,7 @@ The `method-name` may be given in Ezlo's standard form (e.g. `hub.device.setting
 
 ## Nodes for *Node-RED*
 
-I have also published a set of *Node-RED* nodes as a more direct interface. Find that in [the Node-RED Node Library](https://flows.nodered.org/node/node-red-contrib-ezlo).
+I have also published a set of *Node-RED* nodes as a more direct interface. Find that in [the Node-RED Node Library](https://flows.nodered.org/node/ezmqtt).
 
 ## Cautions
 
