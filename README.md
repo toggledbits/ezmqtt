@@ -132,7 +132,7 @@ The `ezmqtt/tele/hub/status` topic is published when the hub reports a change in
 
 All of the above topics except `ezmqtt/tele/mode/changing` are sent with QoS 1 and message retention requested. In this way, subscribers will get immediate updates upon subscription to the broker (if the broker is MQTT 3.1.1 compliant).
 
-## Commanding Devices
+## Commanding Devices (and Modifying Items)
 
 Commanding devices on Ezlo hubs is generally done by setting item values. For example, if you want a dimmer set to 50%, you would use `hub.item.value.set` to set the device's `dimmer` item value to 50. The following topics are defined for this purpose and can be published by your applications:
 
@@ -145,7 +145,18 @@ If these topics are published with a payload, *ezmqtt* will attempt to set the t
 
 If either of the above topics is sent with no payload, the current value of the item is published. This makes it possible to query an item.
 
-A free-form topic allows you to run any *method* (Ezlo's term for a command to the hub):
+## Changing the House Mode
+
+To change the house mode, send a `set/mode` topic with either the mode ID (numeric) or the mode name (string) as the entire payload.
+
+        `ezmqtt/set/mode Away`    <--- sets mode to Away
+        `ezmqtt/set/mode 4`       <--- sets mode to Vacation
+
+If you send the above topic with no payload, the current house mode is published.
+
+## Other API Access
+
+A free-form topic allows you to run any *method* (Ezlo's term for a command to the hub) in their API:
 
     ezmqtt/cmd/<method-name>
 
