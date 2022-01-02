@@ -1,6 +1,6 @@
 {
     "name": "ezmqtt",
-    "version": "0.1.21358",
+    "version": "0.1.22002",
     "description": "EZMQTT - an MQTT Interface for Ezlo Hubs",
     "keywords": [
         "ezlo",
