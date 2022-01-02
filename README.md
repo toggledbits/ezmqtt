@@ -147,10 +147,10 @@ If either of the above topics is sent with no payload, the current value of the 
 
 ## Changing the House Mode
 
-To change the house mode, send a `set/mode` topic with either the mode ID (numeric) or the mode name (string) as the entire payload.
+To change the house mode, send an `ezmqtt/set/mode` topic with either the mode ID (numeric) or the mode name (string) as the entire payload.
 
-        `ezmqtt/set/mode Away`    <--- sets mode to Away
-        `ezmqtt/set/mode 4`       <--- sets mode to Vacation
+        ezmqtt/set/mode Away    <--- sets mode to Away
+        ezmqtt/set/mode 4       <--- sets mode to Vacation
 
 If you send the above topic with no payload, the current house mode is published.
 
