@@ -8,7 +8,7 @@
         "node-red",
         "nodered"
     ],
-    "private": true,
+    "private": false,
     "bin": "./ezmqtt.js",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
