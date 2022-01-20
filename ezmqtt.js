@@ -21,7 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *  Build for Docker
  * persistent storage for devices/items?
  */
-const version = 22002;
+const version = 22020;
 
 const fs = require('fs');
 const path = require('path');
@@ -133,7 +133,13 @@ function mqtt_device_item_message( topic, payload ) {
                     ezlo.setItemValue( device.items[ m[2] ]._id, payload ).then( () => {
                         console.log( `mqtt: <${topic} ${payload}> success; item value set.` );
                     }).catch( err => {
-                        console.error( `mqtt: <${topic} ${payload}> failed; ${err.message} (${err.code}): ${err.reason}` );
+                        if ( err.code ) {
+                            console.error( `mqtt: <${topic} ${payload}> failed; ${err.message} (${err.code}): ${err.reason}` );
+                        } else if ( ( err instanceof TypeError ) || ( err instanceof RangeError ) ) {
+                            console.error( `mqtt: <${topic} ${payload}> failed; ${err.message}` );
+                        } else {
+                            throw err;
+                        }
                     });
                 } catch ( err ) {
                     console.log( `mqtt: <${topic} ${payload}> failed:`, err );
@@ -163,7 +169,13 @@ function mqtt_item_message( topic, payload ) {
                     ezlo.setItemValue( m[1], payload ).then( () => {
                         console.log( `mqtt: <${topic} ${payload}> success` );
                     }).catch( err => {
-                        console.error( `mqtt: <${topic} ${payload}> failed; ${err.message} (${err.code}): ${err.reason}` );
+                        if ( err.code ) {
+                            console.error( `mqtt: <${topic} ${payload}> failed; ${err.message} (${err.code}): ${err.reason}` );
+                        } else if ( ( err instanceof TypeError ) || ( err instanceof RangeError ) ) {
+                            console.error( `mqtt: <${topic} ${payload}> failed; ${err.message}` );
+                        } else {
+                            throw err;
+                        }
                     });
                 } catch ( err ) {
                     console.log( `mqtt: <${topic} ${payload}> failed:`, err );
