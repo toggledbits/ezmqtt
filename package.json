@@ -1,6 +1,6 @@
 {
     "name": "ezmqtt",
-    "version": "0.1.22020",
+    "version": "0.1.22021",
     "description": "EZMQTT - an MQTT Interface for Ezlo Hubs",
     "keywords": [
         "ezlo",
@@ -8,7 +8,7 @@
         "node-red",
         "nodered"
     ],
-    "private": false,
+    "private": true,
     "bin": "./ezmqtt.js",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
