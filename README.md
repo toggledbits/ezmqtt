@@ -59,7 +59,7 @@ When creating a container from the image, you need to create a bind mount at `/v
 docker run --name ezmqtt -d --restart on-failure \
     --mount type=bind,src=/home/username/ezmqtt,target=/var/ezmqtt \
     --mount type=bind,src=/etc/localtime,target=/etc/localtime \
-    toggledbits/ezmqtt:latest-generic-amd64
+    toggledbits/ezmqtt:latest-amd64
 ```
 
 It is possible, perhaps even recommended, to run *ezmqtt* with *docker-compose*. The following is a pro-forma compose file for that purpose:
@@ -83,7 +83,7 @@ services:
       EZMQTT_VAR: /var/ezmqtt
 
     # DO change the image below to the one you are using, if necessary.
-    image: toggledbits/ezmqtt:latest-generic-amd64
+    image: toggledbits/ezmqtt:latest-amd64
 
     restart: "on-failure"
 
@@ -215,7 +215,7 @@ If you later decide you want to turn anonymous access off anf go back to authent
 
 ## Copyright and License
 
-*ezmqtt* is Copyright (C) 2021, Patrick H. Rigney, All Rights Reserved.
+*ezmqtt* is Copyright (C) 2021-2022 Patrick H. Rigney, All Rights Reserved.
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License version 3 as published by the Free Software Foundation.
 

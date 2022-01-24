@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /* ezmqtt -- An MQTT interface for Ezlo hubs
-Copyright (C) 2021, Patrick H. Rigney, All Rights Reserved
+Copyright (C) 2021-2022 Patrick H. Rigney, All Rights Reserved
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,8 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 /* TO-DO:
- *  set config values via MQTT?
- *  Build for Docker
+ * set config values via MQTT?
  * persistent storage for devices/items?
  */
 const version = 22021;
